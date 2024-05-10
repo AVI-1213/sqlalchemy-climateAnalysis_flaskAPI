@@ -27,13 +27,21 @@ station = Base.classes.station
 def previous_year():
 # creating a session
     session = Session(engine)
+
+    recent_date = session.query(measurement.date).order_by(measurement.date.desc()).first()[0]
+    # Convert recent_date to a date object
+    recent_date = dt.datetime.strptime(recent_date, '%Y-%m-%d').date()
     
-    recent_date = session.query(measurement.date).order_by(measurement.date.desc()).first()
-    first_year_date = dt.date(2017,8,23)-dt.timedelta(days=365)
+    first_year_date = recent_date - dt.timedelta(days=365)
     
     session.close()
 
-    return (first_year_date)
+    return first_year_date
+    
+    
+    # session.close()
+
+    # return (first_year_date)
 
  # Create our session (link) from Python to the DB
 #session = Session(engine)
@@ -54,14 +62,15 @@ app = Flask(__name__)
 
 @app.route("/")
 def homepage():
-    return (
-        f"Welcome to Climate Analysis of Hawaii API" 
-        f"List of available routes"
-        f"/api/v1.0/precipitation"
-        f"/api/v1.0/stations"
-        f"/api/v1.0/tobs"
-        f"/api/v1.0/start (as YYYY-MM-DD)"
-        f"/api/v1.0/start/end(as YYYY-MM-DD)"
+        return (
+        f"Welcome to Climate Analysis of Hawaii API <br/>" 
+        f"List of available routes <br/>"
+        f"/api/v1.0/precipitation <br/>"
+        f"/api/v1.0/stations <br/>"
+        f"/api/v1.0/tobs <br/>"
+        f"/api/v1.0/start/YYYY-MM-DD <br/>"
+        f"/api/v1.0/start/YYYY-MM-DD/end/YYYY-MM-DD"
+
         )
 
 
@@ -90,7 +99,7 @@ def percipitation():
 #   /api/v1.0/stations
 #   Return a JSON list of stations from the dataset.
 @app.route("/api/v1.0/stations")
-def station():
+def stations():
     session = Session(engine)
     station_results = session.query(station.station).all()
     
@@ -109,8 +118,9 @@ def station():
 def tobs():
     session = Session(engine)
     
-    temp_obs = session.query(measurement.tobs).filter(measurement.station == 'USC00519281').\
-                filter(measurement.date>= previous_year()).all()
+    temp_obs = session.query(measurement.date, measurement.tobs).\
+                    filter(measurement.station == 'USC00519281').\
+                    filter(measurement.date>= previous_year()).all()
     
     session.close()
 
@@ -119,9 +129,10 @@ def tobs():
         temp_dict = {}
         temp_dict["date"] = date
         temp_dict["tobs"] = tobs
+
         tobs_list.append(temp_dict)
 
-        return jsonify(temp_dict)
+    return jsonify(tobs_list)
     
 #5
 #   /api/v1.0/<start> and /api/v1.0/<start>/<end>
@@ -129,7 +140,50 @@ def tobs():
 #     For a specified start, calculate TMIN, TAVG, and TMAX for all the dates greater than or equal to the start date.
 #     For a specified start date and end date, calculate TMIN, TAVG, and TMAX for the dates from the start date to the end date, inclusive.
 
+@app.route("/api/v1.0/start/<start>")
+def temp_stats_start(start):
+    session = Session(engine)
+    start = previous_year()
+    
+    
+    # Query for minimum, average, and maximum temperature for dates greater than or equal to the start date
+    temp_stats = session.query(func.min(measurement.tobs), func.avg(measurement.tobs), func.max(measurement.tobs)).\
+                 filter(measurement.date >= start).all()
+    
+    session.close()
 
+    # Convert the query result into a dictionary
+    temp_stats_dict = {
+        "start_date": start,
+        "TMIN": temp_stats[0][0],
+        "TAVG": temp_stats[0][1],
+        "TMAX": temp_stats[0][2]
+    }
+
+    return jsonify(temp_stats_dict)
+
+@app.route("/api/v1.0/start/<start>/end/<end>")
+def temp_stats_range(start, end):
+    session = Session(engine)
+    start = previous_year()
+    end = start + dt.timedelta(days=365)
+    
+    # Query for minimum, average, and maximum temperature for the date range
+    temp_stats = session.query(func.min(measurement.tobs), func.avg(measurement.tobs), func.max(measurement.tobs)).\
+                 filter(measurement.date >= start).filter(measurement.date <= end).all()
+    
+    session.close()
+
+    # Convert the query result into a dictionary
+    temp_stats_dict = {
+        "start_date": start,
+        "end_date": end,
+        "TMIN": temp_stats[0][0],
+        "TAVG": temp_stats[0][1],
+        "TMAX": temp_stats[0][2]
+    }
+
+    return jsonify(temp_stats_dict)
 
 
 # Define main branch 
