@@ -49,7 +49,8 @@ This project provides a climate analysis and a Flask API for exploring climate d
 3. Run the Flask app using `python app.py`.
 4. Access the API endpoints using the provided routes.
 
+---
 ## Contributors
 
-- [Avinas K]([link to your GitHub profile](https://github.com/AVI-1213))
+- [Avinash K]([link to my GitHub profile](https://github.com/AVI-1213))
 
