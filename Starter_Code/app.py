@@ -63,7 +63,7 @@ app = Flask(__name__)
 @app.route("/")
 def homepage():
         return (
-        f"Welcome to Climate Analysis of Hawaii API <br/>" 
+        f"Welcome to Climate Analysis of Hawaii API <br/>"
         f"List of available routes <br/>"
         f"/api/v1.0/precipitation <br/>"
         f"/api/v1.0/stations <br/>"
@@ -140,51 +140,33 @@ def tobs():
 #     For a specified start, calculate TMIN, TAVG, and TMAX for all the dates greater than or equal to the start date.
 #     For a specified start date and end date, calculate TMIN, TAVG, and TMAX for the dates from the start date to the end date, inclusive.
 
-@app.route("/api/v1.0/start/<start>")
-def temp_stats_start(start):
+@app.route("/api/v1.0/<start>")
+@app.route("/api/v1.0/<start>/<end>")
+def stats(start=None, end=None):
+
     session = Session(engine)
-    start = previous_year()
     
-    
-    # Query for minimum, average, and maximum temperature for dates greater than or equal to the start date
-    temp_stats = session.query(func.min(measurement.tobs), func.avg(measurement.tobs), func.max(measurement.tobs)).\
-                 filter(measurement.date >= start).all()
-    
+    temp_stat = [func.min(measurement.tobs), func.avg(measurement.tobs), func.max(measurement.tobs)]
+
+    try:
+        start = dt.datetime.strptime(start, "%Y-%m-%d")
+        if end:
+            end = dt.datetime.strptime(end, "%Y-%m-%d")
+    except ValueError:
+        session.close()
+        return jsonify({"Date Format Error": " Please use YYYY-MM-DD"}), 400
+
+    if end:
+        res = session.query(*temp_stat).filter(measurement.date >= start, measurement.date <= end).all()
+    else:
+        res = session.query(*temp_stat).filter(measurement.date >= start).all()
     session.close()
 
-    # Convert the query result into a dictionary
-    temp_stats_dict = {
-        "start_date": start,
-        "TMIN": temp_stats[0][0],
-        "TAVG": temp_stats[0][1],
-        "TMAX": temp_stats[0][2]
-    }
-
-    return jsonify(temp_stats_dict)
-
-@app.route("/api/v1.0/start/<start>/end/<end>")
-def temp_stats_range(start, end):
-    session = Session(engine)
-    start = previous_year()
-    end = start + dt.timedelta(days=365)
-    
-    # Query for minimum, average, and maximum temperature for the date range
-    temp_stats = session.query(func.min(measurement.tobs), func.avg(measurement.tobs), func.max(measurement.tobs)).\
-                 filter(measurement.date >= start).filter(measurement.date <= end).all()
-    
-    session.close()
-
-    # Convert the query result into a dictionary
-    temp_stats_dict = {
-        "start_date": start,
-        "end_date": end,
-        "TMIN": temp_stats[0][0],
-        "TAVG": temp_stats[0][1],
-        "TMAX": temp_stats[0][2]
-    }
-
-    return jsonify(temp_stats_dict)
-
+    if res:
+        temp_d = list(np.ravel(res))
+        return jsonify(temp_d)
+    else:
+        return jsonify({"error": "No data available for given dates"}), 404
 
 # Define main branch 
 if __name__ == "__main__":
